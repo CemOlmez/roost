@@ -1,6 +1,6 @@
 // Package step is the engine behind `roost init` and `roost doctor`.
 //
-// A Step is one checkable item ("Tailscale SSH is on"). Every step can be
+// A Step is one checkable item ("Tailscale connected with SSH on"). Every step can be
 // checked; most can also be fixed automatically. Steps that need a person
 // (BIOS, logging in) provide instructions instead. doctor runs Check only;
 // init runs Check and offers Fix for anything broken.
@@ -40,7 +40,7 @@ func Failf(detail string) Result { return Result{Detail: detail} }
 
 // Step is one item of the setup checklist.
 type Step struct {
-	// ID is a stable kebab-case identifier ("tailscale-ssh").
+	// ID is a stable kebab-case identifier ("tailscale-connected").
 	ID string
 	// Title describes the desired state, phrased as done ("Tailscale SSH is on").
 	Title func(*Env) string
@@ -54,6 +54,9 @@ type Step struct {
 	Fix func(context.Context, *Env) error
 	// Manual returns instructions for steps the user has to do themselves.
 	Manual func(context.Context, *Env) []string
+	// Confirmable means the state can't be detected and the user marks it
+	// done with `roost confirm <id>`; Check must read that confirmation.
+	Confirmable bool
 }
 
 // ErrRestartRequired is returned by a Fix that only takes effect after the

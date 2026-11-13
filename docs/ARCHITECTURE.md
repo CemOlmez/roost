@@ -27,7 +27,8 @@ Dependency direction, no cycles:
 
 ```
 cmd/roost → cli → steps → step → {host, config, ui}
-                   ↘ tailscale, ini, host
+             │       ↘ tailscale, ini
+             └→ config, host, tailscale, ui
 ```
 
 `step` knows nothing about specific steps. `steps` knows nothing about cobra. `host` knows nothing about roost.
@@ -62,8 +63,10 @@ A fix that only takes effect after a restart (enabling systemd in WSL) returns a
 2. **Fix is idempotent.** Running init twice must be harmless.
 3. **Fix ends in a state Check accepts.** The engine re-checks after every fix and reports "still not right" otherwise.
 4. **Never handle the user's passwords.** sudo prompts go to the terminal (`RunTTY`); Windows auto-login is a manual step.
-5. **Root-owned files** are staged in `~/.config/roost/.staging-*` and moved into place with `sudo install` (see `sudoWriteFile`).
+5. **Root-owned files** are staged in a fresh, exclusively created `~/.config/roost/.staging-*` file, installed as root:root with `sudo install -T`, and the staging file is removed (see `sudoWriteFile`).
 6. **Windows checks parse values, not words.** Windows output is localized, so checks read registry values and hex values only.
+7. **Elevated Windows code never touches disk.** The admin script is embedded, its inputs are bound as quoted PowerShell literals, and it is passed via `-EncodedCommand` (see `windowsHostScript`).
+8. **Anything interpolated into a unit file or command line passes `config.SafePath`** (absolute, no spaces or shell/systemd special characters).
 
 ## Adding a step
 
@@ -79,8 +82,9 @@ A fix that only takes effect after a restart (enabling systemd in WSL) returns a
 
 - `make test` runs the unit tests with `-race -shuffle=on`. No test touches the real machine.
 - `hosttest.Fake` matches commands by their full command line. An unscripted command fails the test, so tests also document exactly what roost runs.
+- `go test -tags live ./internal/steps` runs read-only checks against the real Windows host from WSL (e.g. that `-EncodedCommand` round-trips values).
 - Things only real hardware can show (a Windows reboot, a BIOS setting, a power cut) are tracked as manual test checklists in `NOTES.md` and fed back as fixes.
 
 ## Releases
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`: tests, then GoReleaser builds `linux/amd64`, `linux/arm64` and `linux/armv7` and attaches `roost_linux_<arch>.tar.gz` and `checksums.txt` to a GitHub Release. `install.sh` downloads from `releases/latest/download/` and verifies the checksum before installing.
+Pushing a `v*` tag runs `.github/workflows/release.yml`: tests (read-only job), then GoReleaser (pinned version) builds `linux/amd64`, `linux/arm64` and `linux/armv7` and attaches `roost_linux_<arch>.tar.gz` and `checksums.txt` to a GitHub Release. A build-provenance attestation is published for every archive. `install.sh` downloads from `releases/latest/download/` (HTTPS only) and verifies the checksum before installing. All actions are pinned to commit SHAs and checkouts don't keep credentials.

@@ -3,10 +3,13 @@ package steps
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"text/template"
 
+	"github.com/cemolmez/roost/internal/config"
 	"github.com/cemolmez/roost/internal/step"
 )
 
@@ -49,7 +52,7 @@ func ClaudeInstalled() step.Step {
 func ClaudeLoggedIn() step.Step {
 	return step.Step{
 		ID:    "claude-login",
-		Title: title("Claude Code logged in with a Pro/Max/Team plan (API keys can't use Remote Control)"),
+		Title: title("Claude Code logged in with a Claude subscription (API keys can't use Remote Control)"),
 		Roles: both,
 		Check: func(_ context.Context, env *step.Env) step.Result {
 			if env.Host.Exists(filepath.Join(claudeConfigDir(env), ".credentials.json")) {
@@ -63,35 +66,74 @@ func ClaudeLoggedIn() step.Step {
 	}
 }
 
-const rcUnitName = "roost-rc.service"
+const (
+	rcUnitName = "roost-rc.service"
+	// rcSocket is the dedicated tmux socket (tmux -L) for the Remote Control session.
+	rcSocket = "roost-rc"
+)
 
 func rcUnitPath(env *step.Env) string {
 	return filepath.Join(env.Host.HomeDir(), ".config", "systemd", "user", rcUnitName)
 }
 
-// renderRCUnit renders the systemd unit for the Remote Control service.
+// renderRCUnit renders the systemd unit for the Remote Control service. Every
+// path that goes into the unit must pass config.SafePath, because systemd and
+// tmux would otherwise split or reinterpret it.
 func renderRCUnit(env *step.Env) (string, error) {
-	tmpl, err := template.New("unit").Parse(string(Asset("roost-rc.service.tmpl")))
-	if err != nil {
-		return "", err
+	claude := claudeBin(env)
+	if claude == "" {
+		return "", errors.New("claude is not installed")
+	}
+	if strings.HasPrefix(claude, "/mnt/") {
+		return "", fmt.Errorf("claude resolves to the Windows copy %s — install Claude Code inside WSL", claude)
 	}
 	tmux := env.Host.LookPath("tmux")
 	if tmux == "" {
-		tmux = "/usr/bin/tmux"
+		return "", errors.New("tmux is not installed")
 	}
 	home := env.Host.HomeDir()
 	data := map[string]string{
-		"Path":   filepath.Join(home, ".local", "bin") + ":/usr/local/bin:/usr/bin:/bin",
+		"Path":   strings.Join(uniq(filepath.Dir(claude), filepath.Join(home, ".local", "bin"), "/usr/local/bin", "/usr/bin", "/bin"), ":"),
 		"Dir":    rcDir(env),
 		"Tmux":   tmux,
-		"Claude": claudeBin(env),
+		"Claude": claude,
 		"Name":   env.Config.Name,
+	}
+	if d := env.Host.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+		data["ConfigDir"] = d
+	}
+	for _, k := range []string{"Dir", "Tmux", "Claude", "ConfigDir"} {
+		if v := data[k]; v != "" {
+			if err := config.SafePath(v); err != nil {
+				return "", err
+			}
+		}
+	}
+	if err := config.SafePath(home); err != nil {
+		return "", fmt.Errorf("home directory: %w", err)
+	}
+
+	tmpl, err := template.New("unit").Parse(string(Asset("roost-rc.service.tmpl")))
+	if err != nil {
+		return "", err
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func uniq(items ...string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, it := range items {
+		if !seen[it] {
+			seen[it] = true
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 func rcDir(env *step.Env) string {
@@ -101,7 +143,8 @@ func rcDir(env *step.Env) string {
 	return env.Host.HomeDir()
 }
 
-// RemoteControlService: `claude remote-control` runs 24/7 as a user service inside tmux.
+// RemoteControlService: `claude remote-control` runs 24/7 as a user service
+// inside its own tmux server.
 func RemoteControlService() step.Step {
 	return step.Step{
 		ID: "remote-control",
@@ -123,11 +166,14 @@ func RemoteControlService() step.Step {
 			if _, err := env.Host.Run(ctx, "systemctl", "--user", "is-active", "--quiet", "roost-rc"); err != nil {
 				return step.Failf("service installed but not running — see: roost rc logs")
 			}
+			if _, err := env.Host.Run(ctx, "tmux", "-L", rcSocket, "has-session", "-t", "roost-rc"); err != nil {
+				return step.Failf("service is up but Claude isn't running — see: roost rc logs")
+			}
 			return step.Pass()
 		},
 		Fix: func(ctx context.Context, env *step.Env) error {
-			if claudeBin(env) == "" {
-				return fmt.Errorf("install Claude Code first")
+			if !env.Host.Exists(rcDir(env)) {
+				return fmt.Errorf("rc_dir %s does not exist", rcDir(env))
 			}
 			unit, err := renderRCUnit(env)
 			if err != nil {
@@ -136,14 +182,16 @@ func RemoteControlService() step.Step {
 			if err := env.Host.WriteFile(rcUnitPath(env), []byte(unit), 0o644); err != nil {
 				return err
 			}
-			if _, err := env.Host.Run(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
-				return err
+			for _, args := range [][]string{
+				{"--user", "daemon-reload"},
+				{"--user", "enable", "roost-rc"},
+				{"--user", "restart", "roost-rc"},
+			} {
+				if _, err := env.Host.Run(ctx, "systemctl", args...); err != nil {
+					return err
+				}
 			}
-			if _, err := env.Host.Run(ctx, "systemctl", "--user", "enable", "roost-rc"); err != nil {
-				return err
-			}
-			_, err = env.Host.Run(ctx, "systemctl", "--user", "restart", "roost-rc")
-			return err
+			return nil
 		},
 	}
 }

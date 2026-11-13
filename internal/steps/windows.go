@@ -2,10 +2,13 @@ package steps
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/cemolmez/roost/internal/host"
 	"github.com/cemolmez/roost/internal/ini"
@@ -58,11 +61,12 @@ func WSLConfig() step.Step {
 }
 
 // windowsHostCheck reads Windows state without admin rights. It only parses
-// hex values from powercfg, so it works in any Windows display language.
-const windowsHostCheck = `$t=[bool](Get-ScheduledTask -TaskName RoostKeepAlive -ErrorAction SilentlyContinue)
+// booleans, numbers and hex values, so it works in any Windows display language.
+const windowsHostCheck = `$t=Get-ScheduledTask -TaskName RoostKeepAlive -ErrorAction SilentlyContinue
+$mine=[bool]($t -and $t.Principal.UserId -and ($t.Principal.UserId -split '\\')[-1] -eq $env:USERNAME)
 $h=(Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\Power).HibernateEnabled
 $hex=@(powercfg /q SCHEME_CURRENT SUB_SLEEP STANDBYIDLE | ForEach-Object { [regex]::Match($_,'0x[0-9a-fA-F]{8}\s*$').Value.Trim() } | Where-Object { $_ })
-"TASK=$t HIBERNATE=$h STANDBY_AC=$($hex[-2])"`
+"TASK=$mine HIBERNATE=$h STANDBY_AC=$($hex[-2])"`
 
 var windowsHostRe = regexp.MustCompile(`TASK=(\w+) HIBERNATE=(\d*) STANDBY_AC=(0x[0-9a-fA-F]+|)`)
 
@@ -74,7 +78,7 @@ func parseWindowsHost(out string) []string {
 	}
 	var problems []string
 	if m[1] != "True" {
-		problems = append(problems, "WSL doesn't start at logon (no RoostKeepAlive task)")
+		problems = append(problems, "WSL doesn't start at your logon (no RoostKeepAlive task for you)")
 	}
 	if m[2] != "0" {
 		problems = append(problems, "hibernate/Fast Startup is on")
@@ -85,12 +89,37 @@ func parseWindowsHost(out string) []string {
 	return problems
 }
 
-// WindowsHost: WSL starts at logon, no sleep on AC, hibernate/Fast Startup off, wake-on-LAN.
-// The fix runs assets/roost-windows.ps1 once as administrator (one UAC prompt).
+var distroRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// psQuote returns s as a single-quoted PowerShell string literal.
+func psQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+
+// encodePowerShell encodes a script for powershell.exe -EncodedCommand
+// (base64 of UTF-16LE).
+func encodePowerShell(script string) string {
+	u := utf16.Encode([]rune(script))
+	b := make([]byte, 2*len(u))
+	for i, r := range u {
+		binary.LittleEndian.PutUint16(b[2*i:], r)
+	}
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+// windowsHostScript is the elevated script with its inputs bound.
+func windowsHostScript(distro, taskUser string) (string, error) {
+	if !distroRe.MatchString(distro) {
+		return "", fmt.Errorf("WSL distro name %q has characters roost can't pass safely", distro)
+	}
+	return "$Distro = " + psQuote(distro) + "\n$TaskUser = " + psQuote(taskUser) + "\n" + string(Asset("roost-windows.ps1")), nil
+}
+
+// WindowsHost: WSL starts at logon, no sleep on AC, hibernate/Fast Startup off,
+// wake-on-LAN (best effort). The fix runs assets/roost-windows.ps1 once as
+// administrator (one UAC prompt), passed in memory.
 func WindowsHost() step.Step {
 	return step.Step{
 		ID:      "windows-host",
-		Title:   title("Windows: WSL starts at logon, PC never sleeps on AC, Fast Startup off, wake-on-LAN on"),
+		Title:   title("Windows: WSL starts at logon, PC never sleeps on AC power, Fast Startup off"),
 		Roles:   boxOnly,
 		WSLOnly: true,
 		Check: func(ctx context.Context, env *step.Env) step.Result {
@@ -104,29 +133,19 @@ func WindowsHost() step.Step {
 			return step.Pass()
 		},
 		Fix: func(ctx context.Context, env *step.Env) error {
-			tmp, err := host.WindowsEnvDir(ctx, env.Host, "TEMP")
+			user, err := host.PowerShell(ctx, env.Host, `"$env:USERDOMAIN\$env:USERNAME"`)
+			if err != nil || user == "" {
+				return fmt.Errorf("could not read your Windows user name: %w", err)
+			}
+			script, err := windowsHostScript(host.WSLDistro(env.Host), user)
 			if err != nil {
 				return err
 			}
-			script := filepath.Join(tmp, "roost-windows.ps1")
-			if err := env.Host.WriteFile(script, Asset("roost-windows.ps1"), 0o600); err != nil {
-				return err
-			}
-			winScript, err := host.WSLToWindows(ctx, env.Host, script)
-			if err != nil {
-				return err
-			}
-			env.UI.Hint("Windows will ask for administrator permission — click Yes.")
-			launch := fmt.Sprintf(
-				`Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','"%s"','-Distro','%s'`,
-				winScript, host.WSLDistro(env.Host))
+			env.UI.Hint("Windows will ask for administrator permission — click Yes, then press Enter in the new window.")
+			launch := "Start-Process powershell -Verb RunAs -Wait -ArgumentList " +
+				"'-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','" + encodePowerShell(script) + "'"
 			if _, err := host.PowerShell(ctx, env.Host, launch); err != nil {
 				return fmt.Errorf("the administrator prompt was cancelled or failed: %w", err)
-			}
-			for _, line := range strings.Split(readText(env.Host, filepath.Join(tmp, "roost-windows.log")), "\n") {
-				if line = strings.TrimSpace(line); line != "" {
-					env.UI.Hint(line)
-				}
 			}
 			return nil
 		},
@@ -160,10 +179,11 @@ func WindowsAutologon() step.Step {
 // BIOS: power on after power loss + wake-on-LAN. Can't be detected, so the user confirms it.
 func BIOS() step.Step {
 	return step.Step{
-		ID:      "bios",
-		Title:   title("BIOS: PC powers on after a power cut, wake-on-LAN enabled"),
-		Roles:   boxOnly,
-		WSLOnly: true,
+		ID:          "bios",
+		Title:       title("BIOS: PC powers on after a power cut, wake-on-LAN enabled"),
+		Roles:       boxOnly,
+		WSLOnly:     true,
+		Confirmable: true,
 		Check: func(_ context.Context, env *step.Env) step.Result {
 			if env.Host.Exists(confirmedPath(env.Host, "bios")) {
 				return step.Pass()

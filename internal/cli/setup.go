@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -27,6 +28,9 @@ func newInitCmd(app *App) *cobra.Command {
 			ctx := cmd.Context()
 			u := ui.New(app.Out, app.In)
 			u.Yes = yes
+			if !yes && ui.IsNonTerminalFile(app.In) {
+				return errors.New("no terminal to ask questions on — run roost init in a terminal, or pass --yes with --role and --name")
+			}
 
 			cfg, _, err := loadConfig(app)
 			if err != nil {
@@ -138,8 +142,8 @@ func newConfirmCmd(app *App) *cobra.Command {
 		ValidArgs: []string{"bios"},
 		RunE: func(_ *cobra.Command, args []string) error {
 			s, ok := steps.ByID(args[0])
-			if !ok || s.Fix != nil {
-				return fmt.Errorf("%q is not a manual step (try: roost confirm bios)", args[0])
+			if !ok || !s.Confirmable {
+				return fmt.Errorf("%q can't be confirmed by hand — roost checks it itself (try: roost confirm bios)", args[0])
 			}
 			if err := steps.Confirm(app.Host, s.ID); err != nil {
 				return err

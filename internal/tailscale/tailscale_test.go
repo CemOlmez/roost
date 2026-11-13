@@ -47,12 +47,29 @@ func TestGetStatusLoggedOutStillParses(t *testing.T) {
 
 func TestGetPrefs(t *testing.T) {
 	t.Parallel()
-	h := hosttest.New().On("tailscale debug prefs", `{"RunSSH":true,"Hostname":"devbox","OperatorUser":"dev"}`, nil)
+	h := hosttest.New().On("tailscale debug prefs", `{"RunSSH":true,"Hostname":"devbox"}`, nil)
 	p, err := GetPrefs(context.Background(), h)
 	if err != nil {
 		t.Fatalf("GetPrefs: %v", err)
 	}
-	if !p.RunSSH || p.Hostname != "devbox" || p.OperatorUser != "dev" {
+	if !p.RunSSH || p.Hostname != "devbox" {
 		t.Errorf("GetPrefs() = %+v", p)
+	}
+}
+
+func TestMagicDNSName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		n    Node
+		want string
+	}{
+		{Node{HostName: "devbox", DNSName: "devbox.tail1.ts.net."}, "devbox"},
+		{Node{HostName: "devbox", DNSName: "devbox-1.tail1.ts.net."}, "devbox-1"},
+		{Node{HostName: "devbox"}, "devbox"},
+	}
+	for _, tt := range tests {
+		if got := tt.n.MagicDNSName(); got != tt.want {
+			t.Errorf("MagicDNSName(%+v) = %q, want %q", tt.n, got, tt.want)
+		}
 	}
 }

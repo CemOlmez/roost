@@ -68,14 +68,16 @@ func sudo(ctx context.Context, env *step.Env, args ...string) error {
 	return env.Host.RunTTY(ctx, "sudo", args...)
 }
 
-// sudoWriteFile writes a root-owned file by staging it in roost's config dir
-// and moving it into place with `sudo install`.
+// sudoWriteFile writes a root-owned file: it stages the content in a new,
+// exclusively created temp file in roost's config dir, installs it with
+// `sudo install` as root:root 0644, and removes the staging file.
 func sudoWriteFile(ctx context.Context, env *step.Env, path, content string) error {
-	tmp := filepath.Join(config.Dir(env.Host), ".staging-"+filepath.Base(path))
-	if err := env.Host.WriteFile(tmp, []byte(content), 0o600); err != nil {
+	tmp, err := env.Host.CreateTemp(config.Dir(env.Host), ".staging-*", []byte(content))
+	if err != nil {
 		return err
 	}
-	return sudo(ctx, env, "install", "-m", "0644", tmp, path)
+	defer func() { _ = env.Host.Remove(tmp) }()
+	return sudo(ctx, env, "install", "-T", "-m", "0644", "-o", "root", "-g", "root", tmp, path)
 }
 
 // shell runs a shell pipeline attached to the terminal (used for vendor installers).

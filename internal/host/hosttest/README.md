@@ -4,7 +4,7 @@ An in-memory `host.Host`. Files are a map, executables are a set, and commands a
 
 ## What lives here
 
-- **`fake.go`**: `New()` (user `dev`, home `/home/dev`), `.On(cmdline, out, err)`, `.File(path, content)`, `.Bin(names...)`, `.Ran(cmdline)`, `.Calls`.
+- **`fake.go`**: `New()` (user `dev`, home `/home/dev`), `.On(cmdline, out, err)`, `.File(path, content)`, `.Dir(path)`, `.Bin(names...)`, `.Ran(cmdline)`, `.Calls`, `.Written` (last content per path, kept after `Remove`). `CreateTemp` names files `pattern` with `*` → `tmp`.
 
 ## Naming
 

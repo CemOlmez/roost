@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // UI writes human output and reads answers.
@@ -24,13 +26,16 @@ func New(out io.Writer, in io.Reader) *UI {
 	return &UI{out: out, in: bufio.NewReader(in), color: isTerminal(out) && os.Getenv("NO_COLOR") == ""}
 }
 
+// IsNonTerminalFile reports whether r is an *os.File that is not a terminal
+// (a pipe, a file, /dev/null), meaning questions can't be answered.
+func IsNonTerminalFile(r io.Reader) bool {
+	f, ok := r.(*os.File)
+	return ok && !term.IsTerminal(int(f.Fd()))
+}
+
 func isTerminal(w io.Writer) bool {
 	f, ok := w.(*os.File)
-	if !ok {
-		return false
-	}
-	st, err := f.Stat()
-	return err == nil && st.Mode()&os.ModeCharDevice != 0
+	return ok && term.IsTerminal(int(f.Fd()))
 }
 
 const (

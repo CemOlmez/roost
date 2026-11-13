@@ -56,10 +56,23 @@ func TestValidate(t *testing.T) {
 		{"space in name", Config{Role: RoleBox, Name: "dev box"}, false},
 		{"empty name", Config{Role: RoleBox}, false},
 		{"bad box", Config{Role: RoleClient, Name: "laptop", Box: "my box"}, false},
+		{"rc_dir ok", Config{Role: RoleBox, Name: "devbox", RCDir: "/home/dev/projects"}, true},
+		{"rc_dir relative", Config{Role: RoleBox, Name: "devbox", RCDir: "~/code"}, false},
+		{"rc_dir space", Config{Role: RoleBox, Name: "devbox", RCDir: "/home/my dev"}, false},
+		{"rc_dir newline", Config{Role: RoleBox, Name: "devbox", RCDir: "/home/dev\nExecStartPre=/bin/x"}, false},
+		{"rc_dir percent", Config{Role: RoleBox, Name: "devbox", RCDir: "/home/%h"}, false},
 	}
 	for _, tt := range tests {
 		if err := tt.c.Validate(); (err == nil) != tt.ok {
 			t.Errorf("%s: Validate() = %v, want ok=%v", tt.name, err, tt.ok)
 		}
+	}
+}
+
+func TestLoadRejectsInvalidConfig(t *testing.T) {
+	t.Parallel()
+	h := hosttest.New().File("/home/dev/.config/roost/config.toml", "role = \"server\"\nname = \"devbox\"\n")
+	if _, err := Load(h); err == nil || errors.Is(err, ErrNotFound) {
+		t.Errorf("Load() error = %v, want a validation error", err)
 	}
 }

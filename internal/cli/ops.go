@@ -152,7 +152,7 @@ func newRCCmd(app *App) *cobra.Command {
 			Short: "Show the Remote Control screen (QR code, sessions). Detach with Ctrl-b d",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, _ []string) error {
-				err := app.Host.RunTTY(cmd.Context(), "tmux", "attach-session", "-t", "roost-rc")
+				err := app.Host.RunTTY(cmd.Context(), "tmux", "-L", "roost-rc", "attach-session", "-t", "roost-rc")
 				if err != nil {
 					return errors.New("remote control isn't running — check: roost doctor")
 				}

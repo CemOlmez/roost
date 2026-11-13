@@ -84,7 +84,7 @@ These four fire automatically — do not wait to be asked:
 - **Renamed or deleted a unit → its inventory row goes with it.** A stale inventory is
   worse than none, because it is trusted.
 
-Run `python3 ~/.claude/skills/project-bootstrap/scripts/check_structure.py .` to catch drift mechanically.
+Maintainers with the `project-bootstrap` skill installed can run its `check_structure.py .` to catch drift mechanically. Otherwise, check by hand that every folder has a README and the sitemap above matches the tree.
 
 ## Working Guidelines
 

@@ -15,8 +15,12 @@ import (
 // Fake is a scriptable host.Host. Commands are matched by their full command
 // line ("name arg1 arg2"); unmatched commands fail.
 type Fake struct {
-	mu       sync.Mutex
-	Files    map[string][]byte
+	mu    sync.Mutex
+	Files map[string][]byte
+	// Dirs are directories that exist (the home directory always does).
+	Dirs map[string]bool
+	// Written keeps the last content written to every path, even after Remove.
+	Written  map[string][]byte
 	Bins     map[string]bool
 	Env      map[string]string
 	Home     string
@@ -38,6 +42,8 @@ var _ host.Host = (*Fake)(nil)
 func New() *Fake {
 	return &Fake{
 		Files:    map[string][]byte{},
+		Dirs:     map[string]bool{"/home/dev": true},
+		Written:  map[string][]byte{},
 		Bins:     map[string]bool{},
 		Env:      map[string]string{},
 		Home:     "/home/dev",
@@ -55,6 +61,12 @@ func (f *Fake) On(cmdline, out string, err error) *Fake {
 // File sets a file's content.
 func (f *Fake) File(path, content string) *Fake {
 	f.Files[path] = []byte(content)
+	return f
+}
+
+// Dir marks a directory as existing.
+func (f *Fake) Dir(path string) *Fake {
+	f.Dirs[path] = true
 	return f
 }
 
@@ -125,6 +137,7 @@ func (f *Fake) WriteFile(path string, data []byte, _ fs.FileMode) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.Files[filepath.Clean(path)] = append([]byte(nil), data...)
+	f.Written[filepath.Clean(path)] = append([]byte(nil), data...)
 	return nil
 }
 
@@ -133,7 +146,21 @@ func (f *Fake) Exists(path string) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	_, ok := f.Files[path]
-	return ok
+	return ok || f.Dirs[path]
+}
+
+// CreateTemp implements host.Host. The name is dir/pattern with "*" → "tmp".
+func (f *Fake) CreateTemp(dir, pattern string, data []byte) (string, error) {
+	p := filepath.Join(dir, strings.Replace(pattern, "*", "tmp", 1))
+	return p, f.WriteFile(p, data, 0o600)
+}
+
+// Remove implements host.Host.
+func (f *Fake) Remove(path string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.Files, path)
+	return nil
 }
 
 // MkdirAll implements host.Host.

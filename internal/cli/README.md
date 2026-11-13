@@ -11,7 +11,7 @@ See the inventory row in `internal/README.md` for the public API.
 
 ## Naming
 
-`<area>.go` with `<area>_test.go` beside it; fixtures in `testdata/`.
+`<area>.go`; command tests all live in `cli_test.go`.
 
 ## Read first if
 

@@ -43,9 +43,10 @@ func (r Report) Count(s Status) int {
 	return n
 }
 
-// Healthy reports whether nothing is broken or waiting on the user.
+// Healthy reports whether at least one step ran and nothing is broken or
+// waiting on the user. A run with no applicable steps is never healthy.
 func (r Report) Healthy() bool {
-	return !r.Stopped && r.Count(StatusBroken) == 0 && r.Count(StatusManual) == 0
+	return len(r.Outcomes) > 0 && !r.Stopped && r.Count(StatusBroken) == 0 && r.Count(StatusManual) == 0
 }
 
 // Run checks every step in order, printing as it goes. In ModeFix it asks

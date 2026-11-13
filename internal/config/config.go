@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 
@@ -55,6 +56,23 @@ func (c Config) Validate() error {
 	if c.Role == RoleClient && c.Box != "" && !nameRe.MatchString(c.Box) {
 		return fmt.Errorf("box %q must be a valid hostname", c.Box)
 	}
+	if c.RCDir != "" {
+		if err := SafePath(c.RCDir); err != nil {
+			return fmt.Errorf("rc_dir: %w", err)
+		}
+	}
+	return nil
+}
+
+// SafePath checks that p is an absolute, clean path without characters that
+// would need escaping in a systemd unit or a shell command line.
+func SafePath(p string) error {
+	if !filepath.IsAbs(p) || filepath.Clean(p) != p {
+		return fmt.Errorf("%q must be an absolute path like /home/you/projects", p)
+	}
+	if strings.ContainsAny(p, " \t\n\r\"'\\%$`;&|<>*?") {
+		return fmt.Errorf("%q contains spaces or special characters roost can't safely use", p)
+	}
 	return nil
 }
 
@@ -84,6 +102,9 @@ func Load(h host.Host) (Config, error) {
 	}
 	if _, err := toml.Decode(string(b), &c); err != nil {
 		return c, fmt.Errorf("parse %s: %w", Path(h), err)
+	}
+	if err := c.Validate(); err != nil {
+		return c, fmt.Errorf("%s: %w (fix the file or run: roost init)", Path(h), err)
 	}
 	return c, nil
 }

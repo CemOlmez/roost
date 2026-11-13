@@ -41,11 +41,18 @@ command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required (coreutils)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-say "Downloading roost for linux/$arch..."
-curl -fsSL "$base/$archive" -o "$tmp/$archive" || die "download failed: $base/$archive"
-curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt" || die "could not download checksums.txt"
+fetch() {
+  case "$1" in
+    https://*) curl -fsSL --proto '=https' --tlsv1.2 "$1" -o "$2" ;;
+    *) curl -fsSL "$1" -o "$2" ;; # ROOST_BASE_URL for local testing
+  esac
+}
 
-(cd "$tmp" && grep " $archive\$" checksums.txt | sha256sum -c --quiet -) \
+say "Downloading roost for linux/$arch..."
+fetch "$base/$archive" "$tmp/$archive" || die "download failed: $base/$archive"
+fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "could not download checksums.txt"
+
+(cd "$tmp" && grep " $archive\$" checksums.txt | sha256sum -c - >/dev/null) \
   || die "checksum mismatch — refusing to install"
 
 tar -xzf "$tmp/$archive" -C "$tmp" roost
@@ -56,9 +63,18 @@ say "Installed $("$BIN_DIR/roost" --version) → $BIN_DIR/roost"
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
   *)
-    # shellcheck disable=SC2016 # written literally into .bashrc on purpose
-    printf '\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >>"$HOME/.bashrc"
-    say "Added $BIN_DIR to PATH in ~/.bashrc (open a new terminal, or: export PATH=\"$BIN_DIR:\$PATH\")"
+    if [ "$BIN_DIR" = "$HOME/.local/bin" ]; then
+      for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        [ -f "$rc" ] || [ "$rc" = "$HOME/.bashrc" ] || continue
+        grep -qs 'roost installer' "$rc" && continue
+        # shellcheck disable=SC2016 # written literally on purpose
+        printf '\nexport PATH="$HOME/.local/bin:$PATH" # added by roost installer\n' >>"$rc"
+      done
+      say "Added ~/.local/bin to your PATH. Open a new terminal afterwards so 'roost' and 'claude' are found."
+    else
+      say "Add $BIN_DIR to your PATH to run roost from anywhere."
+    fi
+    export PATH="$BIN_DIR:$PATH"
     ;;
 esac
 
@@ -69,7 +85,7 @@ fi
 
 say ""
 # stdin is the curl pipe; give init the terminal so it can ask questions.
-if [ -r /dev/tty ]; then
+if (: </dev/tty) 2>/dev/null; then
   exec "$BIN_DIR/roost" init </dev/tty
 else
   say "No terminal available — run: roost init"

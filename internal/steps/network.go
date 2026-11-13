@@ -27,7 +27,7 @@ func TailscaleInstalled() step.Step {
 	}
 }
 
-// TailscaleConnected: logged in, named, Tailscale SSH on, and usable without sudo.
+// TailscaleConnected: logged in, reachable under the configured name, Tailscale SSH on.
 func TailscaleConnected() step.Step {
 	return step.Step{
 		ID: "tailscale-connected",
@@ -41,10 +41,13 @@ func TailscaleConnected() step.Step {
 				return step.Failf("can't read tailscale status: " + err.Error())
 			}
 			if !st.Running() {
-				return step.Failf("not logged in (state: " + st.BackendState + ")")
+				return step.Failf("not connected (state: " + st.BackendState + ")")
 			}
-			if !strings.EqualFold(st.Self.HostName, env.Config.Name) {
-				return step.Failf(fmt.Sprintf("this machine is called %q on the tailnet, want %q", st.Self.HostName, env.Config.Name))
+			if got := st.Self.MagicDNSName(); !strings.EqualFold(got, env.Config.Name) {
+				if strings.EqualFold(st.Self.HostName, env.Config.Name) {
+					return step.Failf(fmt.Sprintf("the name %q is taken by another device, so this one is %q — remove the old device at https://login.tailscale.com/admin/machines, then run roost init", env.Config.Name, got))
+				}
+				return step.Failf(fmt.Sprintf("this machine is called %q on the tailnet, want %q", got, env.Config.Name))
 			}
 			p, err := tailscale.GetPrefs(ctx, env.Host)
 			if err != nil {
@@ -53,19 +56,19 @@ func TailscaleConnected() step.Step {
 			if !p.RunSSH {
 				return step.Failf("Tailscale SSH is off")
 			}
-			if p.OperatorUser != env.Host.Username() {
-				return step.Failf("roost can't manage tailscale without sudo (operator not set)")
-			}
 			return step.Pass()
 		},
 		Fix: func(ctx context.Context, env *step.Env) error {
-			flags := []string{"--ssh", "--hostname=" + env.Config.Name, "--operator=" + env.Host.Username()}
-			st, err := tailscale.GetStatus(ctx, env.Host)
-			if err == nil && st.Running() {
-				return sudo(ctx, env, append([]string{"tailscale", "set"}, flags...)...)
+			// `set` works in any state and keeps the user's other settings;
+			// `up` with flags would refuse if non-default prefs exist.
+			if err := sudo(ctx, env, "tailscale", "set", "--ssh", "--hostname="+env.Config.Name); err != nil {
+				return err
+			}
+			if st, err := tailscale.GetStatus(ctx, env.Host); err == nil && st.Running() {
+				return nil
 			}
 			env.UI.Hint("A login link will appear — open it and sign in with the same account as your phone.")
-			return sudo(ctx, env, append([]string{"tailscale", "up"}, flags...)...)
+			return sudo(ctx, env, "tailscale", "up")
 		},
 	}
 }

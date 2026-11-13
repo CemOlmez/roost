@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/cemolmez/roost/internal/host"
 )
@@ -17,6 +18,17 @@ type Node struct {
 	DNSName  string `json:"DNSName"`
 	OS       string `json:"OS"`
 	Online   bool   `json:"Online"`
+}
+
+// MagicDNSName is the name other devices reach this node by: the first label
+// of its DNS name ("devbox-1" when "devbox" was already taken). Falls back to
+// HostName when DNS names are unavailable.
+func (n Node) MagicDNSName() string {
+	if n.DNSName == "" {
+		return n.HostName
+	}
+	label, _, _ := strings.Cut(n.DNSName, ".")
+	return label
 }
 
 // IsPhone reports whether the node is a phone or tablet.
@@ -63,9 +75,8 @@ func GetStatus(ctx context.Context, h host.Host) (*Status, error) {
 
 // Prefs is the subset of `tailscale debug prefs` roost uses.
 type Prefs struct {
-	RunSSH       bool   `json:"RunSSH"`
-	Hostname     string `json:"Hostname"`
-	OperatorUser string `json:"OperatorUser"`
+	RunSSH   bool   `json:"RunSSH"`
+	Hostname string `json:"Hostname"`
 }
 
 // GetPrefs runs `tailscale debug prefs`.

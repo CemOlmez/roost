@@ -30,6 +30,10 @@ type Host interface {
 	WriteFile(path string, data []byte, perm fs.FileMode) error
 	Exists(path string) bool
 	MkdirAll(path string, perm fs.FileMode) error
+	// CreateTemp writes data to a new, exclusively created 0600 file in dir
+	// (name from pattern, as os.CreateTemp) and returns its path.
+	CreateTemp(dir, pattern string, data []byte) (string, error)
+	Remove(path string) error
 
 	Getenv(key string) string
 	HomeDir() string
@@ -100,6 +104,30 @@ func (Local) Exists(path string) bool {
 
 // MkdirAll implements Host.
 func (Local) MkdirAll(path string, perm fs.FileMode) error { return os.MkdirAll(path, perm) }
+
+// CreateTemp implements Host.
+func (Local) CreateTemp(dir, pattern string, data []byte) (string, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	f, err := os.CreateTemp(dir, pattern)
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
+}
+
+// Remove implements Host.
+func (Local) Remove(path string) error { return os.Remove(path) }
 
 // Getenv implements Host.
 func (Local) Getenv(key string) string { return os.Getenv(key) }

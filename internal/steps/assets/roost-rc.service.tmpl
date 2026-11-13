@@ -1,15 +1,19 @@
 # Managed by roost — regenerate with: roost init
+# Runs `claude remote-control` in its own tmux server (socket "roost-rc"), so it
+# never shares a server — or a cgroup — with your own terminals.
 [Unit]
 Description=roost: Claude Remote Control (see it with: roost rc attach)
-After=network-online.target
 
 [Service]
 Type=forking
-Environment=PATH={{.Path}}
+Environment="PATH={{.Path}}"
+{{- if .ConfigDir}}
+Environment="CLAUDE_CONFIG_DIR={{.ConfigDir}}"
+{{- end}}
 WorkingDirectory={{.Dir}}
-ExecStart={{.Tmux}} new-session -d -s roost-rc -c "{{.Dir}}" "{{.Claude}} remote-control --name {{.Name}}"
-ExecStop={{.Tmux}} kill-session -t roost-rc
-Restart=on-failure
+ExecStart={{.Tmux}} -L roost-rc new-session -d -s roost-rc -c {{.Dir}} {{.Claude}} remote-control --name {{.Name}}
+ExecStop={{.Tmux}} -L roost-rc kill-session -t roost-rc
+Restart=always
 RestartSec=10
 
 [Install]

@@ -21,6 +21,7 @@ Test files, unless you're changing behaviour.
 ## Discipline
 
 - Steps print through `env.UI`, never fmt.Print.
+- Detect terminals with `golang.org/x/term`, not `ModeCharDevice`: `/dev/null` is a character device too (that bug let `init </dev/null` run).
 
 ## Cross-references
 

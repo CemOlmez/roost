@@ -27,6 +27,10 @@ about what the product *is*, not about effort or urgency.
 
 ## Later — refinements, ideas, and things that are not problems yet
 
+- [ ] **[client · 26-11-13] `box_user` config key.** `roost attach` assumes the same username on laptop and box (README says so). **Trigger:** a user with different usernames (e.g. VPS `ubuntu`). **Pointer:** `internal/cli/ops.go` attach, `internal/config`. **Ripple:** init prompt, Termius hint in the phone step.
+- [ ] **[security · 26-11-13] Warn when the tailnet's SSH policy is broader than `autogroup:self`/nonroot.** Tailscale SSH access is governed by the tailnet policy, which roost doesn't read. **Trigger:** a Tailscale API/CLI way to read the effective SSH policy without admin keys. **Pointer:** `SECURITY.md`, `internal/steps/network.go`. **Ripple:** new check step.
+- [ ] **[security · 26-11-13] Consider defaulting `rc_dir` to a projects folder instead of `$HOME`.** `$HOME` holds `~/.ssh` and credentials. **Trigger:** user feedback on where sessions should start. **Pointer:** `internal/steps/claude.go` rcDir. **Ripple:** init prompt, README.
+
 - [ ] **[ux · 26-11-13] Undo command (`roost uninstall`).** README lists manual undo steps; automate them. **Trigger:** user request. **Pointer:** README § What Roost changes. **Ripple:** each step gains an optional Undo func.
 - [ ] **[ux · 26-11-13] macOS client.** Laptop role on a Mac (no WSL steps apply). **Trigger:** a Mac user asks. **Pointer:** `.goreleaser.yaml` goos, `install.sh` OS check. **Ripple:** darwin builds; tmux/tailscale install differs.
 - [ ] **[dash · 26-11-13] Web dashboard + browser terminal over the tailnet.** **Trigger:** v0.4. **Pointer:** `docs/DESIGN.md`. **Ripple:** new `roost serve`, auth model.

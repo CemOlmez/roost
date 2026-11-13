@@ -40,7 +40,7 @@ There is **one live copy** of your work (on the *primary*). Everything else is a
 
 | Term | What it is |
 |---|---|
-| **Box** | Any Linux environment running the Roost agent: a WSL distro, a VPS, a Pi, a bare Linux machine. |
+| **Box** | Any Linux environment set up with the `roost` CLI: a WSL distro, a VPS, a Pi, a bare Linux machine. |
 | **Primary** | The single box where work happens *right now*. Claude sessions, Remote Control, tmux and dev servers run here. Only one box is primary at a time. |
 | **Replica** | Any other box. It keeps an up-to-date copy of the workspace (seconds behind) and can be **promoted** to primary. |
 | **Vault** | Encrypted, versioned snapshots in storage *you* own (Cloudflare R2, Backblaze B2, S3, Google Drive…). It survives every box being offline. Roost never sees the key. |
@@ -102,7 +102,7 @@ You're at a friend's house.
 
 ### 4. VPS instead of a home PC
 
-`curl -fsSL roost.sh/install | bash` on a fresh Ubuntu VPS sets it up as a box. Choose "always on" and wake/sleep are skipped. Everything else is identical, and you can move from home PC to VPS, or back, with `roost here`.
+`curl -fsSL https://raw.githubusercontent.com/CemOlmez/roost/main/install.sh | sh` on a fresh Ubuntu VPS sets it up as a box; the Windows-only steps are skipped automatically. Everything else is identical, and you can move from home PC to VPS, or back, with `roost here`.
 
 ## Setup: what the user does vs. what Roost does
 
@@ -114,9 +114,9 @@ Detected: Windows 11 + WSL2 (Ubuntu 24.04), Ethernet, 32 GB RAM
   ✓ tmux, ssh, Tailscale installed       → this box is "devbox"
   ✓ Claude Code installed                → run `claude` once to log in   [ACTION]
   ✓ Remote Control service enabled       → starts on boot
-  ✓ Sync: pairing code ABCD-1234         → enter it on your other box
+  ✓ Sync: pairing code ABCD-1234         → enter it on your other box   (planned)
   ✓ Windows: sleep never, hibernate off, Fast Startup off
-  ✓ Windows: WSL starts at logon, auto-login configured
+  ✓ Windows: WSL starts at logon
   ✓ Network card: wake on magic packet
 
   ! BIOS — Roost can't change this. On your board (ASUS PRIME B650):
@@ -128,12 +128,12 @@ Detected: Windows 11 + WSL2 (Ubuntu 24.04), Ethernet, 32 GB RAM
 
 | Roost automates | The user has to do |
 |---|---|
-| WSL config (systemd, memory, idle timeout), packages, tmux, sshd bound to Tailscale only | Install WSL once (or use the installer) |
-| Windows power plan, hibernation, Fast Startup, NIC wake settings, autostart task, auto-login | Approve the admin (UAC) prompt |
+| WSL config (systemd, idle timeout), packages, tmux, Tailscale SSH (no OpenSSH server) | Install WSL once (or, planned, use a Windows installer) |
+| Windows power plan, hibernation, Fast Startup, NIC wake settings, autostart task | Approve the admin (UAC) prompt; turn on auto-login (Sysinternals Autologon) |
 | Remote Control as a systemd service, restarted if it dies | Log in to Claude once per box (subscription, not API key) |
-| Syncthing pairing with the exclude list | Log in to Tailscale once per device |
-| Vault schedule (restic), retention, test-restore | Create a storage bucket and choose a passphrase |
-| Waker setup on a Pi (one script) | Flash the Pi's SD card |
+| *(planned, v0.3)* Syncthing pairing with the exclude list | Log in to Tailscale once per device |
+| *(planned, v0.4)* Vault schedule (restic), retention, test-restore | Create a storage bucket and choose a passphrase |
+| *(planned, v0.2)* Waker setup on a Pi | Flash the Pi's SD card |
 | `roost doctor`: checks every item above and tells you what's missing | Change BIOS settings (with exact guidance) |
 
 ## CLI sketch
@@ -199,4 +199,4 @@ The current roadmap with versions is in the [README](../README.md#roadmap), and 
 
 ## License
 
-TBD (MIT or Apache-2.0 likely).
+MIT. See [LICENSE](../LICENSE).

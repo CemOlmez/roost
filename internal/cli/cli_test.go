@@ -117,7 +117,7 @@ func TestConfirm(t *testing.T) {
 	if !h.Exists("/home/dev/.config/roost/confirmed/bios") {
 		t.Error("marker not written")
 	}
-	if out, code := run(t, h, "", "confirm", "packages"); code != 1 || !strings.Contains(out, "not a manual step") {
+	if out, code := run(t, h, "", "confirm", "phone"); code != 1 || !strings.Contains(out, "can't be confirmed") {
 		t.Errorf("confirm packages: code=%d out=%s", code, out)
 	}
 }

@@ -5,6 +5,7 @@ Everything `roost init` sets up and `roost doctor` checks. The engine that runs 
 ## What lives here
 
 - **`steps.go`**: `All()` (run order), `ByID`, `Confirm`, embedded `Asset`, shared helpers (`sudo`, `sudoWriteFile`, `shell`, `readText`).
+- **`encode_live_test.go`**: `-tags live` test against the real Windows host (read-only).
 - **`linux.go`**: WSL systemd, packages, linger. **`network.go`**: Tailscale, phone. **`claude.go`**: Claude Code + Remote Control service. **`windows.go`**: everything on the Windows host.
 - **`assets/`**: embedded files. See `assets/README.md`.
 
@@ -17,15 +18,15 @@ Run order = table order. B = box, C = client. **Fix**: auto = roost fixes it; ma
 | `wsl-systemd` | systemd is PID 1 in WSL | B C | ✓ | auto (sudo; needs `wsl --shutdown`) | `/proc/1/comm`, `/etc/wsl.conf` |
 | `packages` | tmux, git, curl | B C | | auto (apt) | `LookPath` |
 | `tailscale-installed` | tailscale CLI | B C | | auto (official script) | `LookPath` |
-| `tailscale-connected` | logged in, hostname = name, SSH on, operator = user | B C | | auto (`tailscale up/set`) | `status --json`, `debug prefs` |
+| `tailscale-connected` | connected, reachable as `name` (detects `name-1` duplicates), Tailscale SSH on | B C | | auto (`tailscale set`, then bare `up` if down) | `status --json` DNSName, `debug prefs` |
 | `claude-installed` | Claude Code CLI | B C | | auto (official script) | `LookPath`, `~/.local/bin/claude` |
 | `claude-login` | subscription login | B C | | manual (`/login`) | `$CLAUDE_CONFIG_DIR/.credentials.json` |
 | `linger` | user services run without a session | B | | auto (`loginctl`) | `loginctl show-user` |
-| `remote-control` | `roost-rc` user service running, unit up to date | B | | auto (unit + systemctl) | rendered template == file, `is-active` |
+| `remote-control` | `roost-rc` user service running Claude in tmux socket `roost-rc`, unit up to date | B | | auto (unit + systemctl) | rendered template == file, `is-active`, `tmux -L roost-rc has-session` |
 | `wslconfig` | `.wslconfig` `vmIdleTimeout=-1` | B | ✓ | auto (backup + edit) | `ini.Get` on Windows profile |
-| `windows-host` | RoostKeepAlive task, no AC sleep, hibernate off, WoL | B | ✓ | auto (UAC, `roost-windows.ps1`) | registry + hex powercfg |
+| `windows-host` | RoostKeepAlive task for *this* user, no AC sleep, hibernate off; WoL best effort | B | ✓ | auto (UAC, `roost-windows.ps1` via `-EncodedCommand`) | task principal + registry + hex powercfg |
 | `windows-autologon` | Windows logs in by itself | B | ✓ | manual (Sysinternals Autologon) | Winlogon `AutoAdminLogon` |
-| `bios` | power on after AC loss, WoL | B | ✓ | manual (`roost confirm bios`) | marker file |
+| `bios` | power on after AC loss, WoL | B | ✓ | manual, `Confirmable` (`roost confirm bios`) | marker file |
 | `phone` | a phone on the tailnet | B C | | manual (apps) | tailnet peer OS android/iOS |
 
 ## Naming

@@ -45,21 +45,26 @@ Your work lives on **one machine, the box**. Your laptop and phone are windows i
 Roost automates everything it can. These things need you, because they involve accounts, passwords or hardware:
 
 **Accounts**
-- [ ] **Claude Pro, Max, Team or Enterprise.** Remote Control doesn't work with an API key.
+- [ ] **A Claude subscription (Pro, Max, Team or Enterprise).** Remote Control doesn't work with an API key.
 - [ ] A free **[Tailscale](https://tailscale.com)** account. Nothing gets exposed to the internet.
 
 **Phone**
 - [ ] **Claude** app, signed in.
-- [ ] **Tailscale** app, signed in with the same account.
+- [ ] **Tailscale** app, signed in with the same account. `roost doctor` counts setup as complete once a phone is on your tailnet.
 - [ ] **Termius** (optional), for running commands yourself.
 
 **The box machine**
-- [ ] Linux, or **Windows 10/11 with WSL2 + Ubuntu**. To get WSL, open PowerShell as administrator, run `wsl --install`, then reboot.
+- [ ] Linux (Ubuntu/Debian; Raspberry Pi OS 64- or 32-bit), or **Windows 10 (2004+) / 11 with WSL2 + Ubuntu**.
+  New to WSL? Right-click Start → **Terminal (Admin)**, run `wsl --install`, and reboot. Ubuntu opens by itself and asks you to create a username and password. **Remember that password: it's the `sudo` password roost asks for.** After that, open **Ubuntu** from the Start menu whenever you need it.
 - [ ] For a home PC: an **Ethernet cable**. Wake-on-LAN needs it, and it's more reliable anyway.
-- [ ] Your Linux password (for `sudo`) and Windows administrator rights (you'll get one UAC prompt).
+- [ ] Windows administrator rights (you'll get one UAC prompt).
+
+**The laptop** must be Linux or Windows with WSL (the same setup as above). macOS isn't supported yet.
+
+**Use the same Ubuntu username on the box and the laptop.** `roost attach` logs in to the box with your laptop's username.
 
 `roost init` also asks for two things software can't do, with exact instructions for each:
-- **Windows auto-login**, so the PC comes back after a power cut or an update.
+- **Windows auto-login**, so the PC comes back after a power cut or an update. This needs your real Windows password. If you only sign in with a Windows Hello PIN, first turn off *"For improved security, only allow Windows Hello sign-in"* (Settings → Accounts → Sign-in options).
 - **BIOS settings**: power on after a power loss, and wake-on-LAN.
 
 ## Setup
@@ -83,15 +88,23 @@ Choose **box** and accept the name `devbox`. Roost then goes through its checkli
       Motherboard: ASUS PRIME B650-PLUS. Reboot and press Del or F2 ...
 ```
 
-Re-run `roost init` whenever you like. It only touches what isn't set up yet.
+**What to expect along the way:**
+- Roost asks before each fix: press **Enter** for yes.
+- When it needs `sudo`, it asks for your **Ubuntu password**.
+- It prints a **Tailscale login link**. Open it and sign in with the same account as your phone.
+- If it stops with **"restart WSL"**, open PowerShell, run `wsl --shutdown`, reopen Ubuntu, and run `roost init` again.
+- When it says **"Run claude, type /login"**, do that, then run `roost init` again.
+- On a Windows PC, click **Yes** on the administrator (UAC) prompt.
 
-**2. On your laptop** (in Ubuntu/WSL): run the same command and choose **client**. Then:
+**After the first run, close Ubuntu and open it again**, so that `roost` and `claude` are on your PATH. Then repeat `roost init` until it says **All set** (or only the `[your action]` items remain). It only ever touches what isn't set up yet.
+
+**2. On your laptop** (in Ubuntu/WSL): run the same install command and choose **client**. Then:
 
 ```bash
 roost attach      # your persistent terminal, on the box
 ```
 
-In VS Code, install the **Remote - SSH** extension and connect to `devbox`.
+*VS Code (untested in v0.1):* Roost puts Tailscale inside WSL, but VS Code's Remote-SSH runs on Windows. So also install [Tailscale for Windows](https://tailscale.com/download/windows) on the laptop with the same account, then Remote-SSH to `<your-ubuntu-user>@devbox`.
 
 **3. On your phone:** open the Claude app → **Code**. `devbox` is listed: open it, then type or talk.
 
@@ -112,18 +125,30 @@ In VS Code, install the **Remote - SSH** extension and connect to `devbox`.
 | `roost rc logs` / `start` / `stop` / `restart` | Manage the Remote Control service |
 | `roost confirm bios` | Mark the BIOS step done (Roost can't detect BIOS settings) |
 
+## Update and uninstall
+
+**Update:** re-run the install command. It installs the latest release and re-runs `roost init`, which is safe. Installer options: `ROOST_VERSION=v0.1.0` (pin a version), `ROOST_BIN_DIR=…` (install location), `ROOST_NO_INIT=1` (skip `roost init`).
+
+**Uninstall:** undo the rows below that apply to you, then run `rm ~/.local/bin/roost` and `rm -r ~/.config/roost`.
+
 ## What Roost changes on your machine
 
 Nothing is hidden, and every change can be undone.
 
 | Where | Change | Undo |
 |---|---|---|
+| Ubuntu | `~/.local/bin/roost`; may add `export PATH=…/.local/bin` to `~/.bashrc` | delete them |
 | Ubuntu | `/etc/wsl.conf` → `[boot] systemd=true` | remove the line |
-| Ubuntu | installs tmux, git, curl, Tailscale, Claude Code | `apt remove …` |
-| Ubuntu | Tailscale: `--ssh --hostname=<name> --operator=<you>` | `sudo tailscale set --ssh=false` |
-| Ubuntu (box) | `loginctl enable-linger`, user service `~/.config/systemd/user/roost-rc.service` | `systemctl --user disable --now roost-rc` |
-| Windows (box) | `%USERPROFILE%\.wslconfig` → `vmIdleTimeout=-1` (backup: `.wslconfig.roost-backup`) | restore the backup |
-| Windows (box) | scheduled task **RoostKeepAlive**, no sleep on AC, hibernate off, Ethernet wake on magic packet | delete the task; `powercfg /hibernate on` |
+| Ubuntu | installs tmux, git, curl via apt | `sudo apt remove tmux git curl` |
+| Ubuntu | installs Tailscale with its official script (adds Tailscale's apt repository) | `sudo apt remove tailscale` |
+| Ubuntu | Tailscale: logged in, `--ssh --hostname=<name>` | `sudo tailscale set --ssh=false`, or `sudo tailscale logout` |
+| Ubuntu | installs Claude Code with its official script → `~/.local/bin/claude` | see Claude Code docs |
+| Ubuntu (box) | `loginctl enable-linger` | `sudo loginctl disable-linger $USER` |
+| Ubuntu (box) | user service `~/.config/systemd/user/roost-rc.service`, running Claude in its own tmux server (socket `roost-rc`) | `systemctl --user disable --now roost-rc`, then delete the file |
+| Windows (box) | `%USERPROFILE%\.wslconfig` → `vmIdleTimeout=-1` (backup `.wslconfig.roost-backup` if the file existed) | restore the backup, or delete the line |
+| Windows (box) | scheduled task **RoostKeepAlive** (starts WSL in a hidden window at your logon) | delete it in Task Scheduler |
+| Windows (box) | `powercfg`: sleep and hibernate on AC → never; hibernate (and Fast Startup) off | `powercfg /change standby-timeout-ac 30`, `powercfg /hibernate on` |
+| Windows (box) | Ethernet adapter: wake on magic packet | Device Manager → adapter → Power Management |
 | Roost | `~/.config/roost/` | delete it |
 
 ## Roadmap
