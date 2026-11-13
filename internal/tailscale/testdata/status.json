@@ -1,0 +1,9 @@
+{
+  "Version": "1.102.3",
+  "BackendState": "Running",
+  "Self": {"HostName": "devbox", "DNSName": "devbox.tail1234.ts.net.", "OS": "linux", "Online": true},
+  "Peer": {
+    "nodekey:aaa": {"HostName": "phone", "DNSName": "phone.tail1234.ts.net.", "OS": "android", "Online": false},
+    "nodekey:bbb": {"HostName": "laptop", "DNSName": "laptop.tail1234.ts.net.", "OS": "linux", "Online": true}
+  }
+}

@@ -1,0 +1,16 @@
+# Managed by roost — regenerate with: roost init
+[Unit]
+Description=roost: Claude Remote Control (see it with: roost rc attach)
+After=network-online.target
+
+[Service]
+Type=forking
+Environment=PATH={{.Path}}
+WorkingDirectory={{.Dir}}
+ExecStart={{.Tmux}} new-session -d -s roost-rc -c "{{.Dir}}" "{{.Claude}} remote-control --name {{.Name}}"
+ExecStop={{.Tmux}} kill-session -t roost-rc
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

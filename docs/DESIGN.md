@@ -4,7 +4,7 @@
 
 Roost turns the Linux environments you already have (WSL on a laptop, WSL on a home gaming PC, a VPS, a Raspberry Pi) into **one workspace**. You code in a terminal with Claude Code. You can start at your desk, keep going from your phone through Claude Remote Control while the laptop is closed, carry on from the PC at home, or from a friend's computer if everything else is broken. You never have to remember to sync anything.
 
-> Status: idea and design, iteration 0. Nothing here is built yet. This README describes what we're building so the first person to set it up (the author) can try it and report what broke.
+> This is the product design: the full vision, including features that are not built yet. What exists today is in the [README](../README.md); how the code works is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -189,21 +189,13 @@ roost dash                 open the web dashboard (tailnet only)
 
 ## Roadmap
 
-| Iteration | Goal | Shape |
-|---|---|---|
-| **0 (now)** | Do it by hand on the author's own laptop + home PC + Pi. Write down every step and every failure. | This README + `NOTES.md` |
-| **1** | Scripts: `roost-init.sh` (WSL side), `roost-windows.ps1` (Windows side), `roost-waker.sh` (Pi), `roost doctor` | Bash + PowerShell |
-| **2** | Lease + `roost here` / `status` / `wake` / `sleep`, Syncthing pairing | Bash, still small |
-| **3** | Vault (restic) + `restore` + `leave --wipe`: the friend's-laptop scenario works | — |
-| **4** | Single binary (Go: one file for Windows, Linux x64 and ARM) + web dashboard with browser terminal | Go + small web UI |
-| **5** | Windows installer (.exe) that creates the WSL distro for people who have never used WSL | — |
+The current roadmap with versions is in the [README](../README.md#roadmap), and open work is in [`tasks/backlog.md`](../tasks/backlog.md). In short: **v0.1** box + client setup (shipped) → **v0.2** wake/sleep via a waker → **v0.3** sync + `roost here` → **v0.4** vault + `restore` → **v0.5** dashboard + Windows installer.
 
 ## Open questions
 
 - Is Tailscale a hard requirement, or do we support plain WireGuard / Headscale from the start?
 - Should the vault also auto-commit WIP to a `roost/wip` git branch as a second safety net?
 - Do we support macOS as a *box*, or only as a client?
-- Name: **Roost** is a working title ("your dev box comes home to roost"). Alternatives: *Hearth*, *Homeport*, *Tether*, *Wayhome*. Check for conflicts on GitHub, npm and domains before the first release.
 
 ## License
 

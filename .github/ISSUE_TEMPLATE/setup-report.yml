@@ -1,0 +1,31 @@
+name: Setup problem
+description: Something didn't work when setting up or running roost
+labels: [bug]
+body:
+  - type: input
+    id: machine
+    attributes:
+      label: Machine
+      description: e.g. "Windows 11 + WSL Ubuntu 24.04, gaming PC", "Hetzner VPS Ubuntu 24.04", "Raspberry Pi 5 8GB"
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Role
+      options: [box, client]
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `roost doctor --json`
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
