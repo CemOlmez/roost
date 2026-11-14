@@ -5,9 +5,9 @@ The journal is `NOTES.md`; git owns commit history.
 
 > **▶ Picking this up fresh?** Read `tasks/handoff.md` first.
 
-## As of 2026-11-13
+## As of 2026-11-14
 
-- **Phase:** v0.1.0 built, audited (correctness, security, docs) and tested; release pending tag; not yet validated on real box hardware
+- **Phase:** v0.1.0 released (public, github.com/CemOlmez/roost); not yet validated on real box hardware
 - **Stack:** Go 1.27, cobra, BurntSushi/toml; GoReleaser; GitHub Actions. Linux only (amd64, arm64, armv7).
 
 ## What exists (built + verified)
@@ -15,7 +15,7 @@ The journal is `NOTES.md`; git owns commit history.
 - `roost init` / `doctor` / `status` / `attach` / `rc` / `confirm` / `version`, plus shell completion
 - 13 setup steps (see `internal/steps/README.md`), every one unit-tested with `hosttest.Fake`; a `-tags live` test for the Windows bridge
 - `doctor` and `status` verified on the author's laptop (WSL, client role, and box role via temp config)
-- `install.sh` verified end-to-end against a local release build, including checksum-tamper refusal
+- `install.sh` verified end-to-end against a local build (incl. checksum-tamper refusal) and against the real v0.1.0 release; provenance attestation confirmed
 - CI: tests (race), golangci-lint, shellcheck, goreleaser snapshot, govulncheck, CodeQL, Dependabot; actions pinned by SHA; release has provenance attestation
 - Pre-release audit findings fixed (see NOTES 2026-11-13)
 
